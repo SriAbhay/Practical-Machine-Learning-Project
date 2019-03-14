@@ -1,0 +1,95 @@
+---
+title: "Practical Machine Learning Project"
+author: "Sakib Shahriar"
+date: "March 14, 2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+#Introduction
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement - a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://web.archive.org/web/20161224072740/http:/groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset).
+
+#Reading Data
+
+First, lets load the necessary libraries and then download and read the data.
+
+
+```{r }
+library(corrplot)
+library(rpart)
+library(e1071)
+library(randomForest)
+library(rpart.plot)
+
+
+trainlink <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+testlink <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+train_set <- read.csv(url(trainlink), na.strings=c("NA","#DIV/0!",""))
+test_set<- read.csv(url(testlink), na.strings=c("NA","#DIV/0!",""))
+```
+
+#Data Processing
+
+Next, we will make the data tidy for analysis and also some basic summary to get a picture of the data.
+
+```{r }
+summary(train_set)
+names(train_set)
+#Remove unwanted variables (columns 1-7)
+train_set <- train_set[,-c(1:7)]
+test_set <- test_set[,-c(1:7)]
+train_set$classe <- factor(train_set$classe)
+
+#Select non NAs
+
+nonNA <- sapply(train_set, function(x)all(!is.na(x)))
+train_set <- train_set[,nonNA]
+test_set <- test_set[,nonNA]
+```
+
+
+#Random Forest Classification
+
+Next, we divide the test set and training. Then we train the prediction and use the test to get the confidence matrix
+
+
+```{r }
+#Split the given training set into training and testing
+
+TrSel = createDataPartition(y=train_set$classe, p=0.6, list=FALSE)
+train = train_set[TrSel,]
+test= train_set[-TrSel,]
+
+#Random Forest
+
+controlRf <- trainControl(method="cv", 5)
+makeRF = train(classe ~ ., method = "rf", data=train,rControl=controlRf, ntree=16)
+pred <- predict(makeRF, test)
+#Get the Confusion Matrix
+confusionMatrix(pred, test$classe)
+#Calculate accuracy
+accuracy <- postResample(pred, test$classe)
+```
+
+#Resultls
+
+Next, we will perform the test on the testing data set and plot a tree visualization and also a correlation matrix
+
+
+```{r }
+#Run prediction using the given test set
+
+completeTest <- predict(makeRF, test_set)
+print(completeTest)
+
+TD <- train_set[, sapply(train_set, is.numeric)]
+
+corrPlot <- cor(TD[, -length(names(TD))])
+corrplot(corrPlot, method="color")
+
+Tree <- rpart(classe ~ ., data=train, method="class")
+prp(Tree) 
+```
